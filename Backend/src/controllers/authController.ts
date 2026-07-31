@@ -6,6 +6,7 @@ interface RegisterBody {
     username: string;
     email: string;
     password: string;
+    role : string
 }
 interface LoginBody {
     emailOrName: string;
@@ -13,8 +14,8 @@ interface LoginBody {
 }
 export const postRegister =async(req : Request , res :Response) =>{
    try {
-       const { username, email, password } = req.body as RegisterBody;
-       if (!username || !email || !password) {
+       const { username, email, password ,role} = req.body as RegisterBody;
+       if (!username || !email || !password ) {
            res.status(400).json({ message: 'Vui lòng điền đầy đủ tất cả các trường!' });
            return;
        }
@@ -33,7 +34,8 @@ export const postRegister =async(req : Request , res :Response) =>{
            data: {
                username,
                email,
-               password: hashPassword
+               password: hashPassword ,
+               role: role || 'Staff'
            }
        });
        res.status(201).json({
@@ -41,7 +43,8 @@ export const postRegister =async(req : Request , res :Response) =>{
            user: {
                id: newUser.id,
                username: newUser.username,
-               email: newUser.email
+               email: newUser.email ,
+               role: newUser.role
            }
        });
    } catch (error) {

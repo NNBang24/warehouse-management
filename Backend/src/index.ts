@@ -1,12 +1,16 @@
 import express, {type Request, type Response } from 'express';
 import dotenv from 'dotenv';
+import cors from 'cors'
 import authRouter from './routes/authRouter.js'
 import { prisma } from './config/prisma.js'
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+app.use(cors({
+    origin: 'http://localhost:5173', // URL của Frontend React Vite
+    credentials: true
+}))
 app.use(express.json()) ;
 
 app.use('/api/auth' ,authRouter) ;

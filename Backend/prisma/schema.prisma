@@ -11,119 +11,139 @@ datasource db {
   provider = "mysql" 
   url      = env("DATABASE_URL")
 }
+// 1. USERS MODEL
 model User {
   id        Int      @id @default(autoincrement())
-  username  String   @unique
-  email     String   @unique
-  password  String
-  role      String   @default("user")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  username  String   @unique @db.VarChar(50)
+  email     String   @unique @db.VarChar(100)
+  password  String   @db.VarChar(255)
+  role      String   @db.VarChar(20) // 'Staff', 'Admin'
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  orders    Order[]  @relation("UserOrders") // Quan hệ 1 - N với Order
+  // Relations
+  purchaseOrders       PurchaseOrder[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@map("users")
 }
 
-// 2. Bảng Nhà cung cấp (Supplier)
-// Mối quan hệ: Một Supplier có thể liên quan đến nhiều Order (1 - N)
+// 2. SUPPLIERS MODEL
 model Supplier {
   id        Int      @id @default(autoincrement())
-  name      String
-  maCode    String   @unique @map("ma_code")
-  sdt       String
-  email     String
-  address   String
-  ghiChu    String?  @map("ghi_chu")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  name      String   @db.VarChar(150)
+  code      String   @unique @db.VarChar(30)
+  phone     String?  @db.VarChar(20)
+  email     String?  @db.VarChar(100)
+  address   String?  @db.Text
+  note      String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  orders    Order[]  // Quan hệ 1 - N với Order
+  // Relations
+  purchaseOrders PurchaseOrder[]
+
+  @@map("suppliers")
 }
 
-// 3. Bảng Sản phẩm (Product)
-// Mối quan hệ: 
-// - Nhiều Product thuộc về 1 ProductSize (N - 1)
-// - Một Product có 1 Kho hàng Inventory (1 - 1)
-// - Một Product xuất hiện trong nhiều OrderDetail (1 - N)
-model Product {
-  id           Int          @id @default(autoincrement())
-  name         String
-  maCode       String       @unique @map("ma_code")
-  moTa         String?      @map("mo_ta")
-  price        Float
-  sizeId       Int          @map("size_id")
-  inventoryId  Int          @unique @map("inventory_id")
-
-  productSize  ProductSize  @relation(fields: [sizeId], references: [id])
-  inventory    Inventory    @relation(fields: [inventoryId], references: [id])
-  orderDetails OrderDetail[]
-}
-
-// 4. Bảng Kích thước sản phẩm (ProductSize)
-// Mối quan hệ: 1 ProductSize có thể áp dụng cho nhiều Product (1 - N)
+// 3. PRODUCT SIZES MODEL
 model ProductSize {
   id       Int       @id @default(autoincrement())
-  size     String    @unique
+  sizeName String    @map("size_name") @db.VarChar(50)
+
+  // Relations
   products Product[]
+
+  @@map("product_sizes")
 }
 
-// 5. Bảng Đơn hàng (Order)
-// Mối quan hệ: 
-// - Thuộc về 1 Supplier (N - 1)
-// - Được tạo bởi 1 User (N - 1)
-// - Có nhiều chi tiết Đơn hàng OrderDetail (1 - N)
-model Order {
-  id          Int           @id @default(autoincrement())
-  maCode      String        @unique @map("ma_code")
-  supplierId  Int           @map("supplier_id")
-  nguoiTao    Int           @map("nguoi_tao")
-  ngayTao     DateTime      @default(now()) @map("ngay_tao")
-  note        String?
-  totalAmount Float         @map("total_amount")
-  status      String        @default("pending")
-
-  supplier    Supplier      @relation(fields: [supplierId], references: [id])
-  creator     User          @relation("UserOrders", fields: [nguoiTao], references: [id])
-  orderDetails OrderDetail[]
-}
-
-// 6. Bảng Chi tiết đơn hàng (OrderDetail)
-// Mối quan hệ: Nối giữa Order và Product (N - 1 với cả hai)
-model OrderDetail {
+// 4. PRODUCTS MODEL
+model Product {
   id          Int      @id @default(autoincrement())
-  orderId     Int      @map("order_id")
-  productId   Int      @map("product_id")
-  quantity    Int
-  price       Float
-  totalAmount Float    @map("total_amount")
-
-  order       Order    @relation(fields: [orderId], references: [id])
-  product     Product  @relation(fields: [productId], references: [id])
-}
-
-// 7. Bảng Tồn kho (Inventory)
-// Mối quan hệ: 
-// - 1 - 1 với Product
-// - 1 - N với Lịch sử giao dịch kho (InventoryTransaction)
-model Inventory {
-  id                Int                    @id @default(autoincrement())
-  quantity          Int
-  capNhatLanNhat    DateTime               @updatedAt @map("cap_nhat_lan_nhat")
-  hangDatTruoc      Int                    @default(0) @map("hang_dat_truoc")
-  availableQuantity Int                    @map("available_quantity") // Bạn sẽ tự tính toán giá trị này (quantity - hangDatTruoc) trước khi lưu vào DB
-
-  product           Product?
-  transactions      InventoryTransaction[]
-}
-
-// 8. Bảng Lịch sử giao dịch kho (InventoryTransaction)
-// Mối quan hệ: Nhiều lịch sử thuộc về 1 kho hàng Inventory (N - 1)
-model InventoryTransaction {
-  id          Int      @id @default(autoincrement())
-  inventoryId Int      @map("inventory_id")
-  type        String   // Ví dụ: "IMPORT" (Nhập), "EXPORT" (Xuất), "ADJUST" (Điều chỉnh)
-  quantity    Int      // Số lượng thay đổi (+ hoặc -)
-  note        String?
+  name        String   @db.VarChar(150)
+  code        String   @unique @db.VarChar(30)
+  description String?  @db.Text
+  price       Decimal  @default(0.00) @db.Decimal(15, 2)
+  sizeId      Int?     @map("size_id")
+  imageUrl    String?  @map("image_url") @db.VarChar(255)
   createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  inventory   Inventory @relation(fields: [inventoryId], references: [id])
+  // Relations
+  size                 ProductSize?         @relation(fields: [sizeId], references: [id])
+  inventory            Inventory?
+  purchaseOrderDetails PurchaseOrderDetail[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@map("products")
+}
+
+// 5. INVENTORY MODEL (Quan hệ 1:1 với Product)
+model Inventory {
+  productId         Int      @id @map("product_id")
+  quantity          Int      @default(0)
+  committedQuantity Int      @default(0) @map("committed_quantity")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("inventory")
+}
+
+// 6. PURCHASE ORDERS MODEL
+model PurchaseOrder {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(30)
+  supplierId  Int      @map("supplier_id")
+  createdBy   Int      @map("created_by")
+  issueDate   DateTime @default(now()) @db.Timestamp(0) @map("issue_date")
+  note        String?  @db.Text
+  totalAmount Decimal  @default(0.00) @db.Decimal(15, 2) @map("total_amount")
+  status      String   @default("Draft") @db.VarChar(20) // 'Draft', 'Confirmed', 'Imported'
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  supplier             Supplier              @relation(fields: [supplierId], references: [id])
+  user                 User                  @relation(fields: [createdBy], references: [id])
+  purchaseOrderDetails PurchaseOrderDetail[]
+  inventoryTransactions InventoryTransaction[]
+
+  @@map("purchase_orders")
+}
+
+// 7. PURCHASE ORDER DETAILS MODEL
+model PurchaseOrderDetail {
+  id        Int     @id @default(autoincrement())
+  orderId   Int     @map("order_id")
+  productId Int     @map("product_id")
+  quantity  Int
+  unitPrice Decimal @db.Decimal(15, 2) @map("unit_price")
+  subtotal  Decimal @db.Decimal(15, 2)
+
+  // Relations
+  purchaseOrder PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+
+  @@unique([orderId, productId], name: "unique_order_product")
+  @@map("purchase_order_details")
+}
+
+// 8. INVENTORY TRANSACTIONS MODEL (Lịch sử kho)
+model InventoryTransaction {
+  id              Int      @id @default(autoincrement())
+  productId       Int      @map("product_id")
+  orderId         Int?     @map("order_id")
+  userId          Int      @map("user_id")
+  transactionType String   @map("transaction_type") @db.VarChar(20) // 'IN', 'OUT', 'ADJUST'
+  quantityChanged Int      @map("quantity_changed")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  product       Product        @relation(fields: [productId], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [orderId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+
+  @@map("inventory_transactions")
 }
