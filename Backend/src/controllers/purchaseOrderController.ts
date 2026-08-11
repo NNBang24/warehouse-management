@@ -22,6 +22,13 @@ export const getPurchaseOrders = async(req : Request , res : Response) => {
                 contains : orderCode.trim() ,
             }
         }
+        if (supplierName && typeof supplierName === 'string' && supplierName.trim() !== '') {
+            whereCondition.supplier = {
+                name: {
+                    contains: supplierName.trim(),
+                },
+            }
+        }
 
         const orders = await prisma.purchaseOrder.findMany({
             where : whereCondition ,
