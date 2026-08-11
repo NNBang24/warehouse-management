@@ -10,6 +10,7 @@ interface DecodePayload {
 export interface authenticatedRequest extends Request {
     user?:{
         id : number ;
+        username: string
         role : string ;
     }
 }
