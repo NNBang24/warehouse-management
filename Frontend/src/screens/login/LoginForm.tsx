@@ -25,7 +25,7 @@ export const LoginForm: React.FC = () => {
             dispatch(setAuthSuccess({ user: data.user, token: data.token }))
             setSuccessMessage('Đăng nhập thành công!') ;
             setTimeout(() => {
-                navigate('/')
+                navigate('/purchase-orders')
             }, 1500)
         }
     })

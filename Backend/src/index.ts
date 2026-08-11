@@ -2,6 +2,7 @@ import express, {type Request, type Response } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors'
 import authRouter from './routes/authRouter.js'
+import purchaseOrderRoutes from './routes/purchaseOrderRoutes.js'
 import { prisma } from './config/prisma.js'
 dotenv.config();
 
@@ -14,9 +15,10 @@ app.use(cors({
 app.use(express.json()) ;
 
 app.use('/api/auth' ,authRouter) ;
+app.use('/api/purchase' , purchaseOrderRoutes)
 
 app.get('/', (req: Request, res: Response) => {
-    res.status(200).json({message :' Backend Node.js + TypeScript đã chạy ngon lành cành đào!'});
+    res.status(200).json({message :' Backend Node.js + TypeScript '});
 });
 
 

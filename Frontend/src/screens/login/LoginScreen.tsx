@@ -1,5 +1,5 @@
 import React from 'react'
-import { LoginForm } from './LoginForm' // Import file vừa tạo ở bước 2
+import { LoginForm } from './LoginForm' 
 
 export const LoginScreen: React.FC = () => {
     return (
