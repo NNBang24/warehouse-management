@@ -1,6 +1,9 @@
 import { type Request, type Response } from 'express'
 import { prisma } from '../config/prisma.js';
 import {type authenticatedRequest} from "../middlewares/authenticateToken.js"
+import { assert } from 'node:console';
+
+import { it } from 'node:test';
 interface OrderDetailInput {
     productId: number
     quantity: number
@@ -231,5 +234,103 @@ export const createPurchaseOrder = async (req : authenticatedRequest , res : Res
             })
         }
         return res.status(500).json({ message: 'Lỗi hệ thống phía Server khi tạo đơn hàng!' })
+    }
+}
+
+// patch : xac nhan don hang tu (draft -> confirmed ) 
+export const confirmedPurchaseOrder = async (req : Request  , res : Response) => {
+    try {
+        const orderId = Number(req.params.id) ;
+        if (isNaN(orderId)) {
+            return res.status(400).json({ message: 'ID đơn hàng không hợp lệ!' })
+        }
+        const order = await prisma.purchaseOrder.findUnique({
+            where : {id : orderId} 
+        }) ;
+        if(!order) {
+            return res.status(404).json({ message: 'Không tìm thấy đơn hàng!' })
+        }
+        if(order.status !== 'Draft') {
+            return res.status(400).json( {message: 'Chỉ đơn hàng ở trạng thái "Bản nháp" mới có thể xác nhận!' }) ;
+        }
+        const updatedOrder = await prisma.purchaseOrder.update({
+            where : {
+                id : orderId
+            } ,
+            data : {status :'Confirmed'} ,
+        })
+        return res.status(200).json({
+            message: 'Xác nhận đơn hàng thành công!',
+            order: updatedOrder,
+        })
+    } catch (error) {
+        console.error('Lỗi khi xác nhận đơn hàng:', error)
+        return res.status(500).json({ message: 'Lỗi hệ thống phía Server!' })
+    }
+}
+
+// patch : xac nhan nhap kho (confirmed -> imported)
+export const importPurchaseOrder = async ( req : authenticatedRequest , res : Response) => {
+    try {
+        const orderId = Number(req.params.id) ;
+        const userId = req.user?.id ;
+        if (isNaN(orderId)) {
+            return res.status(400).json({ message: 'ID đơn hàng không hợp lệ!' })
+        }
+        if (!userId) {
+            return res.status(401).json({ message: 'Không tìm thấy thông tin người thực hiện!' })
+        }
+        const order = await prisma.purchaseOrder.findUnique({
+            where : {id : orderId} ,
+            include : {
+                purchaseOrderDetails : true
+            } ,
+
+        })
+        if (!order) {
+            return res.status(404).json({ message: 'Không tìm thấy đơn hàng!' })
+        }
+        if ( order.status !== 'Confirmed') {
+            return res.status(400).json({
+                message: 'Chỉ đơn hàng ở trạng thái "Đã xác nhận" mới có thể nhập kho!',
+            })
+        }
+
+        await prisma.$transaction(async(tx) => {
+            await tx.purchaseOrder.update({
+                where : {id : orderId} ,
+                data : {status : 'Imported'} 
+            })
+            for (const item of order.purchaseOrderDetails) {
+                await tx.inventory.upsert({
+                    where :{productId : item.productId} ,
+                    update : {
+                        quantity : {increment : item.quantity} ,
+                    },
+                    create : {
+                        productId : item.productId ,
+                        quantity : item.quantity ,
+                        committedQuantity : 0
+                    },
+                })
+
+                await tx.inventoryTransaction.create({
+                    data : {
+                        productId : item.productId ,
+                        orderId : order.id ,
+                        userId : Number(userId) ,
+                        transactionType : 'IN' ,
+                        quantityChanged : item.quantity 
+                    }
+                })
+            }
+            
+        })
+        return res.status(200).json({
+            message: 'Xác nhận nhập kho thành công và đã cập nhật số lượng tồn kho!',
+        })
+    } catch (error) {
+        console.error('Lỗi khi nhập kho:', error)
+        return res.status(500).json({ message: 'Lỗi hệ thống khi thực hiện nhập kho!' })
     }
 }
