@@ -12,6 +12,7 @@ interface CreateOrderBody {
     note?: string
     items: OrderDetailInput[]
 }
+// get lay danh sach don mua hang 
 export const getPurchaseOrders = async(req : Request , res : Response) => {
 
     try {
@@ -71,6 +72,67 @@ export const getPurchaseOrders = async(req : Request , res : Response) => {
         return res.status(500).json({ message: 'Lỗi hệ thống phía Server!' })
     }
 }
+
+// Get lay chi tiet 1 don hang 
+export const getPurchaseOrderById = async ( req : Request , res : Response) => {
+    try {
+        const orderId = Number(req.params.id) ;
+        if(isNaN(orderId)) {
+            return res.status(400) .json({message : 'Mã đơn hàng không hợp lệ ! '}) ;
+        }
+        const order = await prisma.purchaseOrder.findUnique({
+            where : {id : orderId} ,
+            include : {
+                supplier : {
+                    select : {
+                        id : true , name : true , code : true 
+                    } ,
+                } ,
+                user : {
+                    select : {
+                        id : true , username : true 
+                    }
+                } ,
+                purchaseOrderDetails : {
+                    include: {
+                        product : {
+                            select : {
+                                id : true , name : true , code : true , price : true
+                            } ,
+                        },
+                    },
+                },
+            },
+        }) ;
+        if( !order) {
+            return res.status(404).json({message : 'Không tìm thấy đoen mua hàng .'}) ;
+        }
+        return  res.status(200).json({
+            id : order.id ,
+            orderCode : order.code ,
+            supplierId : order.supplierId ,
+            supplierName : order.supplier.name ,
+            createByName : order.user.username ,
+            purchaseDate : order.issueDate ,
+            note : order.note || '' ,
+            status : order.status ,
+            totalAmount : Number(order.totalAmount) ,
+            items : order.purchaseOrderDetails.map((detail)=>({
+                id: detail.id ,
+                productId : detail.productId ,
+                productName : detail.product.name ,
+                productCode : detail.product.code ,
+                quantity : detail.quantity ,
+                unitPrice : Number(detail.unitPrice) ,
+                subtotal : Number(detail.subtotal) ,
+            }))
+        })
+    } catch (error) {
+        console.error('Lỗi khi lấy chi tiết đơn hàng:', error)
+        return res.status(500).json({ message: 'Lỗi hệ thống phía Server!' })
+    }
+}
+
 
 export const createPurchaseOrder = async (req : authenticatedRequest , res : Response) => {
     try {
