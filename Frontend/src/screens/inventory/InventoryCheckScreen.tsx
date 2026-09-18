@@ -67,9 +67,6 @@ export const InventoryCheckScreen: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Tra cứu Tồn kho</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Kiểm tra nhanh số lượng hàng hóa và tình trạng tồn kho thực tế
-            </p>
           </div>
           <div className="text-sm text-gray-500">
             Tổng số: <span className="font-semibold text-gray-900">{pagination.totalItems}</span> sản phẩm

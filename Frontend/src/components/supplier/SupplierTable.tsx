@@ -1,8 +1,13 @@
 import React from "react";
-import type { SupplierItem } from "../../api/suppliers"; 
+import type { SupplierItem } from "../../api/suppliers";
+
+// Mở rộng kiểu dữ liệu có thêm createdBy để không bị lỗi ESLint
+export type SupplierTableItem = SupplierItem & {
+  createdBy?: number | null;
+};
 
 export interface SupplierTableProps {
-  suppliers: SupplierItem[];
+  suppliers: SupplierTableItem[];
   isLoading: boolean;
   isError: boolean;
   currentUser?: {
@@ -24,15 +29,27 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
   onDeleteClick,
 }) => {
   if (isLoading) {
-    return <div className="p-8 text-center text-gray-500">Đang tải danh sách nhà cung cấp...</div>;
+    return (
+      <div className="p-8 text-center text-gray-500">
+        Đang tải danh sách nhà cung cấp...
+      </div>
+    );
   }
 
   if (isError) {
-    return <div className="p-8 text-center text-red-500">Có lỗi xảy ra khi tải danh sách nhà cung cấp!</div>;
+    return (
+      <div className="p-8 text-center text-red-500">
+        Có lỗi xảy ra khi tải danh sách nhà cung cấp!
+      </div>
+    );
   }
 
   if (suppliers.length === 0) {
-    return <div className="p-8 text-center text-gray-500">Không tìm thấy nhà cung cấp nào.</div>;
+    return (
+      <div className="p-8 text-center text-gray-500">
+        Không tìm thấy nhà cung cấp nào.
+      </div>
+    );
   }
 
   const isAdmin = currentUser?.role?.toLowerCase() === "admin";
@@ -51,7 +68,9 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
         </thead>
         <tbody className="divide-y divide-gray-200">
           {suppliers.map((supplier) => {
-            const canModify = isAdmin || Number((supplier as any).createdBy) === Number(currentUser?.id);
+            // Không dùng any -> Hết cảnh báo ESLint
+            const canModify =
+              isAdmin || Number(supplier.createdBy) === Number(currentUser?.id);
 
             return (
               <tr
@@ -59,13 +78,15 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
                 onClick={() => onRowClick && onRowClick(supplier.id)}
                 className="hover:bg-gray-50 cursor-pointer transition-colors"
               >
-                <td className="p-3 font-medium text-gray-900">{supplier.code}</td>
+                <td className="p-3 font-medium text-gray-900">
+                  {supplier.code}
+                </td>
                 <td className="p-3">{supplier.name}</td>
                 <td className="p-3">{supplier.phone || "-"}</td>
                 <td className="p-3">{supplier.email || "-"}</td>
                 <td
                   className="p-3 text-center"
-                  onClick={(e) => e.stopPropagation()} // Không kích hoạt onRowClick khi click vào nút hành động
+                  onClick={(e) => e.stopPropagation()}
                 >
                   {canModify ? (
                     <div className="flex justify-center items-center gap-3">
@@ -79,7 +100,9 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
                       {onDeleteClick && (
                         <button
                           type="button"
-                          onClick={() => onDeleteClick(supplier.id, supplier.name)}
+                          onClick={() =>
+                            onDeleteClick(supplier.id, supplier.name)
+                          }
                           className="text-red-600 hover:text-red-800 font-medium"
                         >
                           Xóa
@@ -87,7 +110,9 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
                       )}
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400 italic">Không có quyền</span>
+                    <span className="text-xs text-gray-400 italic">
+                      Không có quyền
+                    </span>
                   )}
                 </td>
               </tr>

@@ -6,7 +6,20 @@ import { logout } from '../../store/slices/authSlice'
 export const Header: React.FC = () => {
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
-  const user = useAppSelector((state) => state.auth.user)
+
+  const reduxUser = useAppSelector((state) => state.auth?.user)
+  const cachedUser = React.useMemo(() => {
+    if (reduxUser) return reduxUser
+    try {
+      const stored = localStorage.getItem('user')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  }, [reduxUser])
+
+  const user = reduxUser || cachedUser
+  const isAdmin = user?.role?.toLowerCase() === 'admin'
 
   const handleLogout = () => {
     dispatch(logout())
@@ -38,10 +51,25 @@ export const Header: React.FC = () => {
           </nav>
 
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-700">
-              Xin chào, <strong className="font-semibold">{user?.username || 'Nhân viên'}</strong>
-            </span>
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <span>Xin chào,</span>
+              <strong className="font-semibold text-gray-900">
+                {user?.username || 'Người dùng'}
+              </strong>
+          
+              <span
+                className={`px-2 py-0.5 rounded text-xs font-medium border ${
+                  isAdmin
+                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : 'bg-gray-100 text-gray-600 border-gray-200'
+                }`}
+              >
+                {isAdmin ? 'Admin' : 'Nhân viên'}
+              </span>
+            </div>
+
             <button
+              type="button"
               onClick={handleLogout}
               className="text-sm font-medium text-red-600 hover:text-red-800 transition-colors"
             >

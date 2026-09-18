@@ -7,16 +7,34 @@ export interface LoginPayload {
   password: string
 }
 
-export const loginRequest = async (credentials: LoginPayload) => {
-  const value = credentials.emailOrName || credentials.username || credentials.email || ''
+export interface AuthUserData {
+  id: number
+  username: string
+  email: string
+  role: string
+}
+
+export interface LoginResponse {
+  token: string
+  user: AuthUserData
+  message?: string
+}
+
+export const loginRequest = async (credentials: LoginPayload): Promise<LoginResponse> => {
+  const accountIdentifier = (
+    credentials.emailOrName ||
+    credentials.username ||
+    credentials.email ||
+    ''
+  ).trim()
 
   const payload = {
-    emailOrName: value,
-    username: value,
-    email: value,
+    emailOrName: accountIdentifier,
+    username: accountIdentifier,
+    email: accountIdentifier,
     password: credentials.password,
   }
 
-  const response = await apiClient.post('/auth/login', payload)
+  const response = await apiClient.post<LoginResponse>('/auth/login', payload)
   return response.data
 }

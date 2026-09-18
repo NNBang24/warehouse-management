@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "react-redux";
+import type { AxiosError } from "axios";
 
 import { Header } from "../../components/layout/Header";
 import { Button } from "../../components/ui/Button";
@@ -9,7 +10,7 @@ import { ProductSearchBar } from "../../components/product/ProductSearchBar";
 import { ProductTable } from "../../components/product/ProductTable";
 import { Pagination } from "../../components/ui/Pagination";
 
-import { getProducts } from "../../api/products";
+import { getProducts, deleteProduct } from "../../api/products";
 
 interface RootState {
   auth?: {
@@ -31,7 +32,7 @@ export interface ProductItem {
   sizeName: string | null;
   description?: string;
   imageUrl?: string;
-  createdBy?: number | null; // Cần thiết để kiểm tra quyền BUG_001
+  createdBy?: number | null;
 }
 
 export interface PaginationMeta {
@@ -46,9 +47,24 @@ export interface ProductApiResponse {
   pagination: PaginationMeta;
 }
 
+interface ApiErrorResponse {
+  message?: string;
+}
+
 export const ProductListScreen: React.FC = () => {
   const navigate = useNavigate();
-  const currentUser = useSelector((state: RootState) => state.auth?.user);
+  const queryClient = useQueryClient();
+
+  const reduxUser = useSelector((state: RootState) => state.auth?.user);
+  const currentUser = React.useMemo(() => {
+    if (reduxUser) return reduxUser;
+    try {
+      const stored = localStorage.getItem("user");
+      return stored ? JSON.parse(stored) : undefined;
+    } catch {
+      return undefined;
+    }
+  }, [reduxUser]);
 
   const [searchKeyword, setSearchKeyword] = useState("");
   const [page, setPage] = useState(1);
@@ -80,6 +96,26 @@ export const ProductListScreen: React.FC = () => {
     limit,
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteProduct(id),
+    onSuccess: () => {
+      alert("Đã xóa sản phẩm thành công!");
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (err: AxiosError<ApiErrorResponse>) => {
+      alert(err.response?.data?.message || "Lỗi khi xóa sản phẩm!");
+    },
+  });
+
+  const handleDeleteProduct = (id: number, name?: string) => {
+    const confirmMessage = name
+      ? `Bạn có chắc muốn xóa sản phẩm "${name}"?`
+      : "Bạn có chắc muốn xóa sản phẩm này?";
+    if (window.confirm(confirmMessage)) {
+      deleteMutation.mutate(id);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -89,7 +125,6 @@ export const ProductListScreen: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">
             Danh sách Sản phẩm
           </h1>
-          {/* Cả Admin và Nhân viên đều có nút tạo mới */}
           <div>
             <Button onClick={() => navigate("/products/create")}>
               + Tạo mới sản phẩm
@@ -109,6 +144,11 @@ export const ProductListScreen: React.FC = () => {
           isError={isError}
           currentUser={currentUser}
           onRowClick={(id) => navigate(`/products/${id}`)}
+          onEdit={(id) => navigate(`/products/${id}`)}
+          onDelete={(id) => {
+            const prod = products.find((p) => p.id === id);
+            handleDeleteProduct(id, prod?.name);
+          }}
         />
 
         <Pagination
