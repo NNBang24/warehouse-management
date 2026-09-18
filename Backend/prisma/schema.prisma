@@ -6,9 +6,9 @@
 generator client {
   provider = "prisma-client-js"
 }
-// @ts-ignore
 datasource db {
-  provider = "mysql" 
+  provider = "mysql"
+
 }
 // 1. USERS MODEL
 model User {
