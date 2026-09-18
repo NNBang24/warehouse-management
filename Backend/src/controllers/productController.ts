@@ -149,8 +149,6 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response) =>
     return res.status(500).json({ message: "Lỗi hệ thống khi tạo sản phẩm!" });
   }
 };
-
-// ADMIN SỬA TẤT CẢ - NHÂN VIÊN CHỈ SỬA SẢN PHẨM DO CHÍNH MÌNH TẠO
 export const updateProduct = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
@@ -170,14 +168,15 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
     });
 
     if (!existingProduct) {
-      return res
-        .status(404)
-        .json({ message: "Không tìm thấy sản phẩm cần cập nhật!" });
+      return res.status(404).json({ message: "Không tìm thấy sản phẩm cần cập nhật!" });
     }
 
-    // Kiểm tra quyền: Admin hoặc chính chủ
-    const isAdmin = user.role?.toLowerCase() === "admin";
-    const isOwner = Number(existingProduct.createdBy) === Number(user.id);
+  
+    const userRole = String(user.role || "").trim().toLowerCase();
+    const isAdmin = userRole === "admin";
+    
+    const productOwnerId = (existingProduct as any).createdBy;
+    const isOwner = productOwnerId != null && Number(productOwnerId) === Number(user.id);
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({
@@ -197,9 +196,7 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
       });
 
       if (duplicateCode) {
-        return res
-          .status(400)
-          .json({ message: `Mã sản phẩm "${trimmedCode}" đã được sử dụng!` });
+        return res.status(400).json({ message: `Mã sản phẩm "${trimmedCode}" đã được sử dụng!` });
       }
     }
 
@@ -230,9 +227,7 @@ export const updateProduct = async (req: AuthenticatedRequest, res: Response) =>
     });
   } catch (error) {
     console.error("Lỗi khi cập nhật sản phẩm:", error);
-    return res
-      .status(500)
-      .json({ message: "Lỗi hệ thống khi cập nhật sản phẩm!" });
+    return res.status(500).json({ message: "Lỗi hệ thống khi cập nhật sản phẩm!" });
   }
 };
 
@@ -258,7 +253,6 @@ export const deleteProduct = async (req: AuthenticatedRequest, res: Response) =>
       return res.status(404).json({ message: "Không tìm thấy sản phẩm cần xóa!" });
     }
 
-    // Kiểm tra quyền
     const isAdmin = user.role?.toLowerCase() === "admin";
     const isOwner = Number(existingProduct.createdBy) === Number(user.id);
 
