@@ -14,12 +14,14 @@ export interface ProductPayload {
   sizeId?: number | null;
   imageUrl?: string;
 }
+
 export interface PaginationMeta {
   totalItems: number;
   totalPages: number;
   currentPage: number;
   limit: number;
 }
+
 export interface ProductApiResponse {
   data: ProductItem[];
   pagination: PaginationMeta;
@@ -60,10 +62,17 @@ export const updateProduct = async (
   return res.data;
 };
 
+
+export const deleteProduct = async (id: string | number) => {
+  const res = await apiClient.delete(`/product/products/${id}`);
+  return res.data;
+};
+
 export const getProductSizes = async (): Promise<ProductSizeOption[]> => {
   const res = await apiClient.get("/product/products/sizes");
   return Array.isArray(res.data) ? res.data : [];
 };
+
 export const createProductSize = async (
   sizeName: string,
 ): Promise<ProductSizeOption> => {

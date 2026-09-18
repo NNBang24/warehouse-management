@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "react-redux";
 import type { AxiosError } from "axios";
 
 import { Header } from "../../components/layout/Header";
@@ -14,6 +15,17 @@ import {
   type SupplierApiResponse,
 } from "../../api/suppliers";
 
+interface RootState {
+  auth?: {
+    user?: {
+      id?: number;
+      username?: string;
+      email?: string;
+      role?: string;
+    };
+  };
+}
+
 interface ApiErrorResponse {
   message?: string;
 }
@@ -21,6 +33,8 @@ interface ApiErrorResponse {
 export const SupplierListScreen: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const currentUser = useSelector((state: RootState) => state.auth?.user);
+
   const [searchKeyword, setSearchKeyword] = useState("");
   const [page, setPage] = useState(1);
   const limit = 4;
@@ -95,6 +109,7 @@ export const SupplierListScreen: React.FC = () => {
           suppliers={suppliers}
           isLoading={isLoading}
           isError={isError}
+          currentUser={currentUser}
           onRowClick={(id) => navigate(`/suppliers/${id}`)}
           onDeleteClick={handleDeleteSupplier}
         />

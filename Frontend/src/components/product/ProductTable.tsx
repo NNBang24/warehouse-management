@@ -1,81 +1,106 @@
-import React from 'react'
-import type { ProductItem } from '../../screens/product/ProductListScreen'
+import React from "react";
+import type { ProductItem } from "../../screens/product/ProductListScreen"; // hoặc đường dẫn import ProductItem tương ứng
 
-interface ProductTableProps {
-  products: ProductItem[]
-  isLoading: boolean
-  isError: boolean
-  onRowClick: (id: number) => void
+export interface ProductTableProps {
+  products: ProductItem[];
+  isLoading: boolean;
+  isError: boolean;
+  currentUser?: {
+    id?: number;
+    username?: string;
+    email?: string;
+    role?: string;
+  };
+  onRowClick?: (id: number) => void;
+  onEdit?: (id: number) => void;
+  onDelete?: (id: number) => void;
 }
 
 export const ProductTable: React.FC<ProductTableProps> = ({
   products,
   isLoading,
   isError,
+  currentUser,
   onRowClick,
+  onEdit,
+  onDelete,
 }) => {
+  if (isLoading) {
+    return <div className="p-8 text-center text-gray-500">Đang tải dữ liệu sản phẩm...</div>;
+  }
+
+  if (isError) {
+    return <div className="p-8 text-center text-red-500">Có lỗi xảy ra khi tải danh sách sản phẩm!</div>;
+  }
+
+  if (products.length === 0) {
+    return <div className="p-8 text-center text-gray-500">Không tìm thấy sản phẩm nào.</div>;
+  }
+
+  const isAdmin = currentUser?.role?.toLowerCase() === "admin";
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
-              <th className="py-3.5 px-4">Mã SP</th>
-              <th className="py-3.5 px-4">Tên sản phẩm</th>
-              <th className="py-3.5 px-4">Quy cách / Size</th>
-              <th className="py-3.5 px-4 text-right">Đơn giá tham khảo</th>
-              <th className="py-3.5 px-4 text-center">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 text-sm">
-            {isLoading ? (
-              <tr>
-                <td colSpan={5} className="text-center py-10 text-gray-500">
-                  Đang tải danh sách sản phẩm...
+    <div className="overflow-x-auto bg-white rounded-lg border border-gray-200 shadow-sm">
+      <table className="w-full border-collapse text-left text-sm text-gray-700">
+        <thead className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase text-gray-600">
+          <tr>
+            <th className="p-3">Mã SP</th>
+            <th className="p-3">Tên sản phẩm</th>
+            <th className="p-3">Quy cách</th>
+            <th className="p-3">Giá</th>
+            <th className="p-3 text-center">Hành động</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {products.map((item) => {
+            const canModify = isAdmin || Number(item.createdBy) === Number(currentUser?.id);
+
+            return (
+              <tr
+                key={item.id}
+                onClick={() => onRowClick && onRowClick(item.id)}
+                className="hover:bg-gray-50 cursor-pointer transition-colors"
+              >
+                <td className="p-3 font-medium text-gray-900">{item.code}</td>
+                <td className="p-3">{item.name}</td>
+                <td className="p-3">{item.sizeName || "-"}</td>
+                <td className="p-3 font-medium text-blue-600">
+                  {item.price.toLocaleString("vi-VN")} đ
                 </td>
-              </tr>
-            ) : isError ? (
-              <tr>
-                <td colSpan={5} className="text-center py-10 text-red-500">
-                  Không thể tải danh sách sản phẩm từ máy chủ.
-                </td>
-              </tr>
-            ) : products.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="text-center py-10 text-gray-400">
-                  Chưa có sản phẩm nào trong hệ thống.
-                </td>
-              </tr>
-            ) : (
-              products.map((item) => (
-                <tr
-                  key={item.id}
-                  onClick={() => onRowClick(item.id)}
-                  className="hover:bg-blue-50/50 cursor-pointer transition-colors duration-150"
+                <td
+                  className="p-3 text-center"
+                  onClick={(e) => e.stopPropagation()} // Chặn trigger onRowClick khi bấm nút thao tác
                 >
-                  <td className="py-3.5 px-4 font-semibold text-blue-600">
-                    {item.code}
-                  </td>
-                  <td className="py-3.5 px-4 text-gray-900 font-medium">
-                    {item.name}
-                  </td>
-                  <td className="py-3.5 px-4 text-gray-600">
-                    {item.sizeName || '—'}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-semibold text-gray-800">
-                    {item.price.toLocaleString('vi-VN')} đ
-                  </td>
-                  <td className="py-3.5 px-4 text-center">
-                    <span className="text-xs text-blue-600 hover:underline font-medium">
-                      Xem / Sửa
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  {canModify ? (
+                    <div className="flex justify-center items-center gap-3">
+                      {onEdit && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(item.id)}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          Sửa
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(item.id)}
+                          className="text-red-600 hover:text-red-800 font-medium"
+                        >
+                          Xóa
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">Không có quyền</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
-  )
-}
+  );
+};

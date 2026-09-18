@@ -1,5 +1,6 @@
 import { type Request, type Response } from 'express'
 import { prisma } from '../config/prisma.js'
+import { type AuthenticatedRequest } from '../middlewares/authenticateToken.js'
 
 export const getSuppliers = async (req: Request, res: Response) => {
   try {
@@ -45,7 +46,6 @@ export const getSuppliers = async (req: Request, res: Response) => {
   }
 };
 
-
 export const getSupplierById = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -68,8 +68,13 @@ export const getSupplierById = async (req: Request, res: Response) => {
   }
 };
 
-export const createSupplier = async (req: Request, res: Response) => {
+export const createSupplier = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Không tìm thấy thông tin xác thực người dùng!' });
+    }
+
     const { name, code, phone, email, address, note } = req.body;
 
     if (!name || !String(name).trim()) {
@@ -101,7 +106,8 @@ export const createSupplier = async (req: Request, res: Response) => {
         email: email && String(email).trim() ? String(email).trim() : null,
         address: address && String(address).trim() ? String(address).trim() : null,
         note: note && String(note).trim() ? String(note).trim() : null,
-      },
+        createdBy: Number(userId), // Lưu ID người tạo
+      } as any,
     });
 
     return res.status(201).json({
@@ -115,19 +121,35 @@ export const createSupplier = async (req: Request, res: Response) => {
 };
 
 
-export const updateSupplier = async (req: Request, res: Response) => {
+export const updateSupplier = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
+    const user = req.user;
     const { name, code, phone, email, address, note } = req.body;
 
     if (isNaN(id)) {
       return res.status(400).json({ message: 'ID nhà cung cấp không hợp lệ!' });
     }
 
+    if (!user) {
+      return res.status(401).json({ message: 'Không tìm thấy thông tin xác thực!' });
+    }
+
     const existing = await prisma.supplier.findUnique({ where: { id } });
     if (!existing) {
       return res.status(404).json({ message: 'Không tìm thấy nhà cung cấp để cập nhật!' });
     }
+
+
+    const isAdmin = user.role?.toLowerCase() === 'admin';
+    const isOwner = Number((existing as any).createdBy) === Number(user.id);
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({
+        message: 'Bạn chỉ có quyền chỉnh sửa nhà cung cấp do chính mình tạo ra!',
+      });
+    }
+
     if (code) {
       const trimmedCode = String(code).trim().toUpperCase();
       const duplicateCode = await prisma.supplier.findFirst({
@@ -165,11 +187,32 @@ export const updateSupplier = async (req: Request, res: Response) => {
 };
 
 
-export const deleteSupplier = async (req: Request, res: Response) => {
+export const deleteSupplier = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
+    const user = req.user;
+
     if (isNaN(id)) {
       return res.status(400).json({ message: 'ID nhà cung cấp không hợp lệ!' });
+    }
+
+    if (!user) {
+      return res.status(401).json({ message: 'Không tìm thấy thông tin xác thực!' });
+    }
+
+    const existing = await prisma.supplier.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ message: 'Không tìm thấy nhà cung cấp!' });
+    }
+
+    // Phân quyền BUG_001
+    const isAdmin = user.role?.toLowerCase() === 'admin';
+    const isOwner = Number((existing as any).createdBy) === Number(user.id);
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({
+        message: 'Bạn chỉ có quyền xóa nhà cung cấp do chính mình tạo ra!',
+      });
     }
 
     const hasOrders = await prisma.purchaseOrder.findFirst({

@@ -1,106 +1,100 @@
-import React from 'react'
-import type { SupplierItem } from '../../api/suppliers'
+import React from "react";
+import type { SupplierItem } from "../../api/suppliers"; 
 
-interface SupplierTableProps {
-  suppliers: SupplierItem[]
-  isLoading: boolean
-  isError: boolean
-  onRowClick: (id: number) => void
-  onDeleteClick: (id: number, name: string) => void
+export interface SupplierTableProps {
+  suppliers: SupplierItem[];
+  isLoading: boolean;
+  isError: boolean;
+  currentUser?: {
+    id?: number;
+    username?: string;
+    email?: string;
+    role?: string;
+  };
+  onRowClick?: (id: number) => void;
+  onDeleteClick?: (id: number, name: string) => void;
 }
 
 export const SupplierTable: React.FC<SupplierTableProps> = ({
   suppliers,
   isLoading,
   isError,
+  currentUser,
   onRowClick,
   onDeleteClick,
 }) => {
+  if (isLoading) {
+    return <div className="p-8 text-center text-gray-500">Đang tải danh sách nhà cung cấp...</div>;
+  }
+
+  if (isError) {
+    return <div className="p-8 text-center text-red-500">Có lỗi xảy ra khi tải danh sách nhà cung cấp!</div>;
+  }
+
+  if (suppliers.length === 0) {
+    return <div className="p-8 text-center text-gray-500">Không tìm thấy nhà cung cấp nào.</div>;
+  }
+
+  const isAdmin = currentUser?.role?.toLowerCase() === "admin";
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
-              <th className="py-3.5 px-4">Mã NCC</th>
-              <th className="py-3.5 px-4">Tên nhà cung cấp</th>
-              <th className="py-3.5 px-4">Số điện thoại</th>
-              <th className="py-3.5 px-4">Email</th>
-              <th className="py-3.5 px-4">Địa chỉ</th>
-              <th className="py-3.5 px-4 text-center">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 text-sm">
-            {isLoading ? (
-              <tr>
-                <td colSpan={6} className="text-center py-10 text-gray-500">
-                  Đang tải danh sách nhà cung cấp...
-                </td>
-              </tr>
-            ) : isError ? (
-              <tr>
-                <td colSpan={6} className="text-center py-10 text-red-500">
-                  Không thể tải dữ liệu từ máy chủ.
-                </td>
-              </tr>
-            ) : suppliers.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="text-center py-10 text-gray-400">
-                  Chưa có nhà cung cấp nào.
-                </td>
-              </tr>
-            ) : (
-              suppliers.map((item) => (
-                <tr
-                  key={item.id}
-                  onClick={() => onRowClick(item.id)}
-                  className="hover:bg-blue-50/50 cursor-pointer transition-colors duration-150"
+    <div className="overflow-x-auto bg-white rounded-lg border border-gray-200 shadow-sm">
+      <table className="w-full border-collapse text-left text-sm text-gray-700">
+        <thead className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase text-gray-600">
+          <tr>
+            <th className="p-3">Mã NCC</th>
+            <th className="p-3">Tên nhà cung cấp</th>
+            <th className="p-3">Số điện thoại</th>
+            <th className="p-3">Email</th>
+            <th className="p-3 text-center">Hành động</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {suppliers.map((supplier) => {
+            const canModify = isAdmin || Number((supplier as any).createdBy) === Number(currentUser?.id);
+
+            return (
+              <tr
+                key={supplier.id}
+                onClick={() => onRowClick && onRowClick(supplier.id)}
+                className="hover:bg-gray-50 cursor-pointer transition-colors"
+              >
+                <td className="p-3 font-medium text-gray-900">{supplier.code}</td>
+                <td className="p-3">{supplier.name}</td>
+                <td className="p-3">{supplier.phone || "-"}</td>
+                <td className="p-3">{supplier.email || "-"}</td>
+                <td
+                  className="p-3 text-center"
+                  onClick={(e) => e.stopPropagation()} // Không kích hoạt onRowClick khi click vào nút hành động
                 >
-                  <td className="py-3.5 px-4 font-semibold text-blue-600">
-                    {item.code}
-                  </td>
-                  <td className="py-3.5 px-4 text-gray-900 font-medium">
-                    {item.name}
-                  </td>
-                  <td className="py-3.5 px-4 text-gray-600">
-                    {item.phone || '—'}
-                  </td>
-                  <td className="py-3.5 px-4 text-gray-600">
-                    {item.email || '—'}
-                  </td>
-                  <td className="py-3.5 px-4 text-gray-600 max-w-xs truncate">
-                    {item.address || '—'}
-                  </td>
-                  <td className="py-3.5 px-4 text-center">
-                    <div className="flex items-center justify-center gap-3">
+                  {canModify ? (
+                    <div className="flex justify-center items-center gap-3">
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onRowClick(item.id)
-                        }}
-                        className="text-xs bg-green-600 hover:bg-green-700 text-white font-semibold px-2.5 py-1 rounded transition-colors"
+                        onClick={() => onRowClick && onRowClick(supplier.id)}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
                       >
                         Sửa
                       </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDeleteClick(item.id, item.name)
-                        }}
-                        className="text-xs bg-red-600 hover:bg-red-700 text-white font-semibold px-2.5 py-1 rounded transition-colors"
-                      >
-                        Xóa
-                      </button>
+                      {onDeleteClick && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteClick(supplier.id, supplier.name)}
+                          className="text-red-600 hover:text-red-800 font-medium"
+                        >
+                          Xóa
+                        </button>
+                      )}
                     </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">Không có quyền</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
-  )
-}
+  );
+};

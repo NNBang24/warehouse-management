@@ -1,6 +1,6 @@
 import { type Request, type Response } from "express";
 import { prisma } from "../config/prisma.js";
-
+import { type AuthenticatedRequest } from "../middlewares/authenticateToken.js";
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
@@ -44,6 +44,7 @@ export const getProducts = async (req: Request, res: Response) => {
       sizeId: item.sizeId,
       sizeName: item.size?.sizeName || null,
       imageUrl: item.imageUrl,
+      createdBy: item.createdBy,
     }));
 
     const totalPages = Math.ceil(totalItems / limit);
@@ -96,9 +97,14 @@ export const getProductById = async (req: Request, res: Response) => {
   }
 };
 
-
-export const createProduct = async (req: Request, res: Response) => {
+// CẢ ADMIN VÀ NHÂN VIÊN ĐỀU TẠO ĐƯỢC -> TỰ GÁN createdBy
+export const createProduct = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: "Không tìm thấy thông tin xác thực người dùng!" });
+    }
+
     const { name, code, price, description, sizeId, imageUrl } = req.body;
 
     if (!name || !code) {
@@ -127,6 +133,7 @@ export const createProduct = async (req: Request, res: Response) => {
         description: description || "",
         sizeId: sizeId ? Number(sizeId) : null,
         imageUrl: imageUrl || "",
+        createdBy: Number(userId),
       },
     });
 
@@ -143,17 +150,20 @@ export const createProduct = async (req: Request, res: Response) => {
   }
 };
 
-
-export const updateProduct = async (req: Request, res: Response) => {
+// ADMIN SỬA TẤT CẢ - NHÂN VIÊN CHỈ SỬA SẢN PHẨM DO CHÍNH MÌNH TẠO
+export const updateProduct = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const productId = Number(id);
+    const user = req.user;
 
     if (isNaN(productId)) {
       return res.status(400).json({ message: "ID sản phẩm không hợp lệ!" });
     }
 
-    const { name, code, price, description, sizeId, imageUrl } = req.body;
+    if (!user) {
+      return res.status(401).json({ message: "Không tìm thấy thông tin xác thực!" });
+    }
 
     const existingProduct = await prisma.product.findUnique({
       where: { id: productId },
@@ -164,6 +174,18 @@ export const updateProduct = async (req: Request, res: Response) => {
         .status(404)
         .json({ message: "Không tìm thấy sản phẩm cần cập nhật!" });
     }
+
+    // Kiểm tra quyền: Admin hoặc chính chủ
+    const isAdmin = user.role?.toLowerCase() === "admin";
+    const isOwner = Number(existingProduct.createdBy) === Number(user.id);
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({
+        message: "Bạn chỉ có quyền chỉnh sửa sản phẩm do chính mình tạo ra!",
+      });
+    }
+
+    const { name, code, price, description, sizeId, imageUrl } = req.body;
 
     if (code) {
       const trimmedCode = String(code).trim();
@@ -214,6 +236,54 @@ export const updateProduct = async (req: Request, res: Response) => {
   }
 };
 
+export const deleteProduct = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const productId = Number(id);
+    const user = req.user;
+
+    if (isNaN(productId)) {
+      return res.status(400).json({ message: "ID sản phẩm không hợp lệ!" });
+    }
+
+    if (!user) {
+      return res.status(401).json({ message: "Không tìm thấy thông tin xác thực!" });
+    }
+
+    const existingProduct = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!existingProduct) {
+      return res.status(404).json({ message: "Không tìm thấy sản phẩm cần xóa!" });
+    }
+
+    // Kiểm tra quyền
+    const isAdmin = user.role?.toLowerCase() === "admin";
+    const isOwner = Number(existingProduct.createdBy) === Number(user.id);
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({
+        message: "Bạn chỉ có quyền xóa sản phẩm do chính mình tạo ra!",
+      });
+    }
+
+    await prisma.product.delete({
+      where: { id: productId },
+    });
+
+    return res.status(200).json({ message: "Xóa sản phẩm thành công!" });
+  } catch (error: any) {
+    console.error("Lỗi khi xóa sản phẩm:", error);
+    if (error.code === "P2003") {
+      return res.status(400).json({
+        message: "Không thể xóa sản phẩm đã có trong các đơn mua hàng hoặc kho!",
+      });
+    }
+    return res.status(500).json({ message: "Lỗi hệ thống khi xóa sản phẩm!" });
+  }
+};
+
 export const getProductSizes = async (_req: Request, res: Response) => {
   try {
     const sizes = await prisma.productSize.findMany({
@@ -225,12 +295,13 @@ export const getProductSizes = async (_req: Request, res: Response) => {
     return res.status(500).json({ message: "Lỗi hệ thống phía Server!" });
   }
 };
+
 export const createProductSize = async (req: Request, res: Response) => {
   try {
     const { sizeName } = req.body;
 
     if (!sizeName || !String(sizeName).trim()) {
-      return res.status(400).json({ message: 'Tên quy cách không được để trống!' });
+      return res.status(400).json({ message: "Tên quy cách không được để trống!" });
     }
 
     const newSize = await prisma.productSize.create({
@@ -240,11 +311,11 @@ export const createProductSize = async (req: Request, res: Response) => {
     });
 
     return res.status(201).json({
-      message: 'Thêm quy cách thành công!',
+      message: "Thêm quy cách thành công!",
       data: newSize,
     });
   } catch (error) {
-    console.error('Lỗi khi tạo quy cách:', error);
-    return res.status(500).json({ message: 'Lỗi hệ thống khi tạo quy cách!' });
+    console.error("Lỗi khi tạo quy cách:", error);
+    return res.status(500).json({ message: "Lỗi hệ thống khi tạo quy cách!" });
   }
 };

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useSelector } from "react-redux";
 
 import { Header } from "../../components/layout/Header";
 import { Button } from "../../components/ui/Button";
@@ -9,6 +10,17 @@ import { ProductTable } from "../../components/product/ProductTable";
 import { Pagination } from "../../components/ui/Pagination";
 
 import { getProducts } from "../../api/products";
+
+interface RootState {
+  auth?: {
+    user?: {
+      id?: number;
+      username?: string;
+      email?: string;
+      role?: string;
+    };
+  };
+}
 
 export interface ProductItem {
   id: number;
@@ -19,6 +31,7 @@ export interface ProductItem {
   sizeName: string | null;
   description?: string;
   imageUrl?: string;
+  createdBy?: number | null; // Cần thiết để kiểm tra quyền BUG_001
 }
 
 export interface PaginationMeta {
@@ -35,6 +48,8 @@ export interface ProductApiResponse {
 
 export const ProductListScreen: React.FC = () => {
   const navigate = useNavigate();
+  const currentUser = useSelector((state: RootState) => state.auth?.user);
+
   const [searchKeyword, setSearchKeyword] = useState("");
   const [page, setPage] = useState(1);
   const limit = 5;
@@ -54,7 +69,7 @@ export const ProductListScreen: React.FC = () => {
       const res = await getProducts(searchKeyword, page, limit);
       return res as ProductApiResponse;
     },
-    placeholderData: (prev) => prev, 
+    placeholderData: (prev) => prev,
   });
 
   const products = response?.data || [];
@@ -74,6 +89,7 @@ export const ProductListScreen: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">
             Danh sách Sản phẩm
           </h1>
+          {/* Cả Admin và Nhân viên đều có nút tạo mới */}
           <div>
             <Button onClick={() => navigate("/products/create")}>
               + Tạo mới sản phẩm
@@ -91,6 +107,7 @@ export const ProductListScreen: React.FC = () => {
           products={products}
           isLoading={isLoading}
           isError={isError}
+          currentUser={currentUser}
           onRowClick={(id) => navigate(`/products/${id}`)}
         />
 

@@ -6,10 +6,12 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "mysql"
-
+  url      = env("DATABASE_URL")
 }
+
 // 1. USERS MODEL
 model User {
   id        Int      @id @default(autoincrement())
@@ -21,7 +23,7 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  purchaseOrders       PurchaseOrder[]
+  purchaseOrders        PurchaseOrder[]
   inventoryTransactions InventoryTransaction[]
 
   @@map("users")
@@ -47,8 +49,8 @@ model Supplier {
 
 // 3. PRODUCT SIZES MODEL
 model ProductSize {
-  id       Int       @id @default(autoincrement())
-  sizeName String    @map("size_name") @db.VarChar(50)
+  id       Int    @id @default(autoincrement())
+  sizeName String @map("size_name") @db.VarChar(50)
 
   // Relations
   products Product[]
@@ -64,14 +66,15 @@ model Product {
   description String?  @db.Text
   price       Decimal  @default(0.00) @db.Decimal(15, 2)
   sizeId      Int?     @map("size_id")
+  createdBy   Int?     @map("created_by")
   imageUrl    String?  @map("image_url") @db.VarChar(255)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  size                 ProductSize?         @relation(fields: [sizeId], references: [id])
-  inventory            Inventory?
-  purchaseOrderDetails PurchaseOrderDetail[]
+  size                  ProductSize?           @relation(fields: [sizeId], references: [id])
+  inventory             Inventory?
+  purchaseOrderDetails  PurchaseOrderDetail[]
   inventoryTransactions InventoryTransaction[]
 
   @@map("products")
@@ -96,17 +99,17 @@ model PurchaseOrder {
   code        String   @unique @db.VarChar(30)
   supplierId  Int      @map("supplier_id")
   createdBy   Int      @map("created_by")
-  issueDate   DateTime @default(now()) @db.Timestamp(0) @map("issue_date")
+  issueDate   DateTime @default(now()) @map("issue_date") @db.Timestamp(0)
   note        String?  @db.Text
-  totalAmount Decimal  @default(0.00) @db.Decimal(15, 2) @map("total_amount")
+  totalAmount Decimal  @default(0.00) @map("total_amount") @db.Decimal(15, 2)
   status      String   @default("Draft") @db.VarChar(20) // 'Draft', 'Confirmed', 'Imported'
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   // Relations
-  supplier             Supplier              @relation(fields: [supplierId], references: [id])
-  user                 User                  @relation(fields: [createdBy], references: [id])
-  purchaseOrderDetails PurchaseOrderDetail[]
+  supplier              Supplier               @relation(fields: [supplierId], references: [id])
+  user                  User                   @relation(fields: [createdBy], references: [id])
+  purchaseOrderDetails  PurchaseOrderDetail[]
   inventoryTransactions InventoryTransaction[]
 
   @@map("purchase_orders")
@@ -118,7 +121,7 @@ model PurchaseOrderDetail {
   orderId   Int     @map("order_id")
   productId Int     @map("product_id")
   quantity  Int
-  unitPrice Decimal @db.Decimal(15, 2) @map("unit_price")
+  unitPrice Decimal @map("unit_price") @db.Decimal(15, 2)
   subtotal  Decimal @db.Decimal(15, 2)
 
   // Relations
