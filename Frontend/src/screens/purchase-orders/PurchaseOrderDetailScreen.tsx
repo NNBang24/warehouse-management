@@ -7,7 +7,6 @@ import type { AxiosError } from 'axios'
 import { Header } from '../../components/layout/Header'
 import { OrderInfoForm, type SupplierOption } from '../../components/purchase-order/OrderInfoForm'
 import { OrderDetailTable, type OrderRowItem, type ProductOption } from '../../components/purchase-order/OrderDetailTable'
-import { OrderActions } from '../../components/purchase-order/OrderActions'
 
 import { getSuppliers } from '../../api/suppliers'
 import { getProducts } from '../../api/products'
@@ -66,9 +65,15 @@ const FormView: React.FC<FormViewProps> = ({
   const queryClient = useQueryClient()
 
   const [formData, setFormData] = useState<OrderFormData>(defaultData)
-  const isReadOnly = isEditMode && formData.status !== 'Draft'
+  // Quản lý trạng thái: Nếu mở đơn có sẵn thì mặc định coi như đã lưu
+  const [isSaved, setIsSaved] = useState<boolean>(isEditMode)
+
+  const isDraft = !formData.status || formData.status.toLowerCase() === 'draft'
+  const isConfirmed = formData.status?.toLowerCase() === 'confirmed'
+  const isReadOnly = isEditMode && !isDraft
 
   const handleAddItem = () => {
+    setIsSaved(false)
     setFormData((prev) => ({
       ...prev,
       items: [
@@ -79,6 +84,7 @@ const FormView: React.FC<FormViewProps> = ({
   }
 
   const handleRemoveItem = (index: number) => {
+    setIsSaved(false)
     setFormData((prev) => ({
       ...prev,
       items: prev.items.filter((_, i) => i !== index),
@@ -90,6 +96,7 @@ const FormView: React.FC<FormViewProps> = ({
     field: keyof OrderRowItem,
     value: string | number
   ) => {
+    setIsSaved(false)
     setFormData((prev) => {
       const updatedItems = [...prev.items]
       if (field === 'productId') {
@@ -114,23 +121,34 @@ const FormView: React.FC<FormViewProps> = ({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const validItems = formData.items
+        .filter((i) => Number(i.productId) > 0 && Number(i.quantity) > 0)
+        .map((i) => ({
+          productId: Number(i.productId),
+          quantity: Number(i.quantity),
+          unitPrice: Number(i.unitPrice),
+        }))
+
       const payload = {
         supplierId: Number(formData.supplierId),
         note: formData.note,
         issueDate: formData.issueDate,
         userId: currentUserId,
-        items: formData.items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-        })),
+        items: validItems,
       }
+
       return isEditMode ? await updatePurchaseOrder(id!, payload) : await createPurchaseOrder(payload)
     },
     onSuccess: (data) => {
       alert(isEditMode ? 'Cập nhật thành công!' : 'Tạo mới đơn hàng bản nháp thành công!')
+      setIsSaved(true)
+
       queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
-      navigate(`/purchase-orders/${isEditMode ? id : data?.order?.id || data?.orderId}`)
+      if (isEditMode) {
+        queryClient.invalidateQueries({ queryKey: ['purchaseOrder', id] })
+      }
+      const targetId = isEditMode ? id : data?.order?.id || data?.id || data?.orderId
+      navigate(`/purchase-orders/${targetId}`)
     },
     onError: (err: AxiosError<ApiErrorResponse>) => {
       alert(err.response?.data?.message || 'Có lỗi khi lưu đơn hàng!')
@@ -143,6 +161,7 @@ const FormView: React.FC<FormViewProps> = ({
       alert('Đã xác nhận đơn hàng!')
       setFormData((prev) => ({ ...prev, status: 'Confirmed' }))
       queryClient.invalidateQueries({ queryKey: ['purchaseOrder', id] })
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
     },
     onError: (err: AxiosError<ApiErrorResponse>) => {
       alert(err.response?.data?.message || 'Lỗi khi xác nhận đơn hàng!')
@@ -155,6 +174,7 @@ const FormView: React.FC<FormViewProps> = ({
       alert('Nhập kho thành công và đã cộng tồn kho!')
       setFormData((prev) => ({ ...prev, status: 'Imported' }))
       queryClient.invalidateQueries({ queryKey: ['purchaseOrder', id] })
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] })
     },
     onError: (err: AxiosError<ApiErrorResponse>) => {
       alert(err.response?.data?.message || 'Lỗi khi nhập kho!')
@@ -163,8 +183,10 @@ const FormView: React.FC<FormViewProps> = ({
 
   const handleSave = () => {
     if (!formData.supplierId) return alert('Vui lòng chọn Nhà cung cấp!')
-    if (formData.items.length === 0 || formData.items.some((i) => !i.productId || i.quantity <= 0)) {
-      return alert('Vui lòng chọn sản phẩm và nhập số lượng hợp lệ!')
+    
+    const validItems = formData.items.filter((i) => Number(i.productId) > 0 && Number(i.quantity) > 0)
+    if (validItems.length === 0) {
+      return alert('Vui lòng chọn ít nhất một sản phẩm và nhập số lượng hợp lệ!')
     }
     saveMutation.mutate()
   }
@@ -184,26 +206,35 @@ const FormView: React.FC<FormViewProps> = ({
         {isEditMode && (
           <span
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-              formData.status === 'Draft'
+              isDraft
                 ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                : formData.status === 'Confirmed'
+                : isConfirmed
                 ? 'bg-blue-100 text-blue-800 border border-blue-200'
                 : 'bg-green-100 text-green-800 border border-green-200'
             }`}
           >
-            {formData.status === 'Draft' ? 'Bản nháp' : formData.status === 'Confirmed' ? 'Đã xác nhận' : 'Đã nhập kho'}
+            {isDraft ? 'Bản nháp' : isConfirmed ? 'Đã xác nhận' : 'Đã nhập kho'}
           </span>
         )}
       </div>
 
       <OrderInfoForm
         supplierId={formData.supplierId}
-        setSupplierId={(supId) => setFormData((prev) => ({ ...prev, supplierId: supId }))}
+        setSupplierId={(supId) => {
+          setIsSaved(false)
+          setFormData((prev) => ({ ...prev, supplierId: supId }))
+        }}
         staffName={formData.staffName}
         issueDate={formData.issueDate}
-        setIssueDate={(date) => setFormData((prev) => ({ ...prev, issueDate: date }))}
+        setIssueDate={(date) => {
+          setIsSaved(false)
+          setFormData((prev) => ({ ...prev, issueDate: date }))
+        }}
         note={formData.note}
-        setNote={(noteText) => setFormData((prev) => ({ ...prev, note: noteText }))}
+        setNote={(noteText) => {
+          setIsSaved(false)
+          setFormData((prev) => ({ ...prev, note: noteText }))
+        }}
         suppliers={suppliers}
         isReadOnly={isReadOnly}
       />
@@ -226,21 +257,62 @@ const FormView: React.FC<FormViewProps> = ({
         </div>
       </div>
 
-      <OrderActions
-        isEditMode={isEditMode}
-        status={formData.status}
-        isSaving={saveMutation.isPending}
-        isConfirming={confirmMutation.isPending}
-        isImporting={importMutation.isPending}
-        onBack={() => navigate('/purchase-orders')}
-        onSave={handleSave}
-        onConfirm={() => {
-          if (window.confirm('Xác nhận đơn hàng? Sau khi xác nhận sẽ khóa sửa đổi.')) confirmMutation.mutate()
-        }}
-        onImport={() => {
-          if (window.confirm('Xác nhận nhập kho và cộng tồn kho?')) importMutation.mutate()
-        }}
-      />
+      {/* Khu vực nút hành động: Tự động ẩn nút Lưu khi isSaved = true */}
+      <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+        <button
+          type="button"
+          onClick={() => navigate('/purchase-orders')}
+          className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium"
+        >
+          Quay lại
+        </button>
+
+        <div className="flex items-center gap-3">
+          {/* NÚT LƯU: Ẩn khi đã lưu thành công (isSaved = true) */}
+          {isDraft && !isSaved && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saveMutation.isPending}
+              className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm disabled:opacity-50"
+            >
+              {saveMutation.isPending ? 'Đang lưu...' : isEditMode ? 'Lưu thay đổi' : 'Tạo đơn hàng'}
+            </button>
+          )}
+
+          {/* NÚT XÁC NHẬN: Chỉ hiển thị khi đã lưu thành công (isSaved = true) */}
+          {isDraft && isSaved && isEditMode && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Xác nhận đơn hàng? Sau khi xác nhận sẽ khóa sửa đổi.')) {
+                  confirmMutation.mutate()
+                }
+              }}
+              disabled={confirmMutation.isPending}
+              className="px-5 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium shadow-sm disabled:opacity-50"
+            >
+              {confirmMutation.isPending ? 'Đang xác nhận...' : 'Xác nhận đơn hàng'}
+            </button>
+          )}
+
+          {/* Nút Nhập kho */}
+          {isEditMode && isConfirmed && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Xác nhận nhập kho và cộng tồn kho?')) {
+                  importMutation.mutate()
+                }
+              }}
+              disabled={importMutation.isPending}
+              className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm disabled:opacity-50"
+            >
+              {importMutation.isPending ? 'Đang nhập kho...' : 'Nhập kho'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -250,7 +322,6 @@ export const PurchaseOrderDetailScreen: React.FC = () => {
   const isEditMode = Boolean(id && id !== 'create')
   const currentUser = useSelector((state: RootState) => state.auth?.user)
 
-
   const { data: supplierResponse } = useQuery({
     queryKey: ['suppliers', 'all'],
     queryFn: () => getSuppliers(undefined, 1, 100),
@@ -259,7 +330,6 @@ export const PurchaseOrderDetailScreen: React.FC = () => {
     ? supplierResponse
     : ((supplierResponse?.data || []) as unknown as SupplierOption[])
 
- 
   const { data: productResponse } = useQuery({
     queryKey: ['products', 'all'],
     queryFn: () => getProducts(undefined, 1, 100),
@@ -267,7 +337,6 @@ export const PurchaseOrderDetailScreen: React.FC = () => {
   const products: ProductOption[] = Array.isArray(productResponse)
     ? productResponse
     : ((productResponse?.data || []) as unknown as ProductOption[])
-
 
   const { data: orderDetail, isLoading: isLoadingDetail } = useQuery({
     queryKey: ['purchaseOrder', id],
@@ -309,7 +378,7 @@ export const PurchaseOrderDetailScreen: React.FC = () => {
       <Header />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <FormView
-          key={id || 'new'}
+          key={isEditMode ? `edit-${id}-${orderDetail?.orderCode || 'ready'}` : 'new'}
           id={id}
           isEditMode={isEditMode}
           defaultData={defaultData}

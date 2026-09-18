@@ -15,6 +15,11 @@ interface CreateOrderBody {
     note?: string
     items: OrderDetailInput[]
 }
+interface UpdateOrderBody {
+    supplierId?: number
+    note?: string
+    items?: OrderDetailInput[]
+}
 // get lay danh sach don mua hang 
 export const getPurchaseOrders = async (req: Request, res: Response) => {
     try {
@@ -351,3 +356,118 @@ export const importPurchaseOrder = async ( req : AuthenticatedRequest , res : Re
         return res.status(500).json({ message: 'Lỗi hệ thống khi thực hiện nhập kho!' })
     }
 }
+export const updatePurchaseOrder = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const orderId = Number(req.params.id);
+        if (isNaN(orderId)) {
+            return res.status(400).json({ message: 'Mã đơn hàng không hợp lệ!' });
+        }
+
+        const { supplierId, note, items } = req.body as UpdateOrderBody;
+
+        const existingOrder = await prisma.purchaseOrder.findUnique({
+            where: { id: orderId },
+            include: { purchaseOrderDetails: true },
+        });
+
+        if (!existingOrder) {
+            return res.status(404).json({ message: 'Không tìm thấy đơn mua hàng!' });
+        }
+
+        if (existingOrder.status !== 'Draft') {
+            return res.status(400).json({
+                message: 'Chỉ có thể chỉnh sửa sản phẩm khi đơn hàng ở trạng thái "Bản nháp"!',
+            });
+        }
+
+        let calculatedTotalAmount = Number(existingOrder.totalAmount);
+        let preparedDetails: any[] | null = null;
+
+        if (items && Array.isArray(items)) {
+            calculatedTotalAmount = 0;
+            preparedDetails = items.map((item) => {
+                const subtotal = Number(item.quantity) * Number(item.unitPrice);
+                calculatedTotalAmount += subtotal;
+                return {
+                    productId: Number(item.productId),
+                    quantity: Number(item.quantity),
+                    unitPrice: item.unitPrice,
+                    subtotal: subtotal,
+                };
+            });
+        }
+
+        const updateData: any = {
+            totalAmount: calculatedTotalAmount,
+        };
+
+        if (supplierId !== undefined) {
+            updateData.supplierId = Number(supplierId);
+        }
+        if (note !== undefined) {
+            updateData.note = note;
+        }
+        if (preparedDetails) {
+            updateData.purchaseOrderDetails = {
+                create: preparedDetails,
+            };
+        }
+
+  
+        const updatedOrder = await prisma.$transaction(async (tx) => {
+            if (preparedDetails) {
+     
+                await tx.purchaseOrderDetail.deleteMany({
+                    where: { orderId: orderId },
+                });
+            }
+
+            return await tx.purchaseOrder.update({
+                where: { id: orderId },
+                data: updateData,
+                include: {
+                    supplier: {
+                        select: { name: true },
+                    },
+                    purchaseOrderDetails: {
+                        include: {
+                            product: {
+                                select: { id: true, name: true, code: true },
+                            },
+                        },
+                    },
+                },
+            });
+        });
+
+        return res.status(200).json({
+            message: 'Cập nhật đơn mua hàng thành công!',
+            order: {
+                id: updatedOrder.id,
+                orderCode: updatedOrder.code,
+                supplierName: updatedOrder.supplier?.name || '',
+                purchaseDate: updatedOrder.issueDate,
+                totalAmount: Number(updatedOrder.totalAmount),
+                status: updatedOrder.status,
+                note: updatedOrder.note,
+                items: updatedOrder.purchaseOrderDetails.map((detail) => ({
+                    id: detail.id,
+                    productId: detail.productId,
+                    productName: detail.product.name,
+                    productCode: detail.product.code,
+                    quantity: detail.quantity,
+                    unitPrice: Number(detail.unitPrice),
+                    subtotal: Number(detail.subtotal),
+                })),
+            },
+        });
+    } catch (error: any) {
+        console.error('Lỗi khi cập nhật đơn mua hàng:', error);
+        if (error.code === 'P2003') {
+            return res.status(400).json({
+                message: 'Sản phẩm hoặc Nhà cung cấp không hợp lệ trong hệ thống!',
+            });
+        }
+        return res.status(500).json({ message: 'Lỗi hệ thống phía Server khi cập nhật đơn hàng!' });
+    }
+};
